@@ -1,0 +1,111 @@
+#----------------------------------------------------------
+# Choropleth
+#----------------------------------------------------------
+#install.packages("gpclib")
+#install.packages("pacman")
+library(pacman)
+p_load(maptools, sp, mapproj, tidyverse, maps, gpclib, sp, raster)
+p_load(dplyr, broom)
+gpclibPermit()
+
+# read in the language data
+lang <- read_csv('ua_lang_admin1_v02.csv')
+lang <- lang %>% dplyr::select(contains(c("admin1","Ukrainian", "Russian")))
+lang <- lang[-9]
+lang <- lang[-1,]
+# get the map data
+ukr <- raster::getData('GADM', country = "UKR", level = 1)
+ukr$NAME_1
+plot(ukr)
+
+# check how the admin names sort
+cbind(sort(ukr$NAME_1), sort(lang$admin1_name))
+# rename
+lang$admin1_name = recode(lang$admin1_name %>% unlist()
+  , "Cherkaska oblast" = "Cherkasy"
+  , "Chernihivska oblast" = "Chernihiv"
+  , "Chernivetska oblast" = "Chernivtsi"
+  , "The Autonomous Republic of Crimea" = "Crimea"
+  , "Dnipropetrovska oblast" = "Dnipropetrovs'k"
+  , "Donetska oblast" = "Donets'k"
+  , "Ivano-Frankivska oblast" = "Ivano-Frankivs'k" 
+  , "Kharkivska oblast" = "Kharkiv"
+  , "Khersonska oblast" = "Kherson"
+  , "Khmelnytska oblast" = "Khmel'nyts'kyy"
+  , "Kirovohradska oblast" = "Kirovohrad"
+  , "Kyiv (independent city)" = "Kiev City"
+  , "Kyivska oblast" = "Kiev"
+  , "Luhanska oblast" = "Luhans'k"
+  , "Lvivska oblast" = "L'viv"
+  , "Mykolaivska oblast" = "Mykolayiv"
+  , "Odeska oblast" = "Odessa"
+  , "Poltavska oblast" = "Poltava"
+  , "Rivnenska oblast" = "Rivne"
+  , "Sevastopol (independent city)" = "Sevastopol'"
+  , "Sumska oblast" = "Sumy"
+  , "Ternopilska oblast" = "Ternopil'"
+  , "Volynska oblast" = "Volyn"
+  , "Vinnytska oblast" = "Vinnytsya"
+  , "Zakarpatska oblast" = "Transcarpathia"
+  , "Zaporizka oblast" = "Zaporizhzhya"
+  , "Zhytomyrska oblast" = "Zhytomyr"
+)
+
+# clean up the names for lang
+lang <- lang %>% mutate(admin1_name = 
+                          admin1_name %>% 
+                          gsub("['|' ']+", "", .)) %>% 
+  rename("id" = admin1_name)
+# clean up col names in the lag df
+colnames(lang) = make.names(colnames(lang))
+
+# fortify the map data (turn it into a df)
+map <- tidy(ukr, region = 'NAME_1')
+
+# clean up the names for the map in id and group
+map <- map %>% mutate(id = 
+                        id %>%
+                        gsub("['|' ']+", "", .)
+                      ,
+                      group = group %>% 
+                        gsub("['|' ']+", "", .))
+
+# aggregate for UKL1 (Ukrainian = Primary Lang)
+df.u1 <- aggregate(as.numeric(lang$Ukrainian.L1), list(lang$id), sum)
+colnames(df.u1) <- c("id", 'pct_ukr_L1')
+
+# merge
+ukr.L1.map <- merge(x=map, y=df.u1, by = 'id')
+ukr.L1.map %>% glimpse
+
+# MAP
+#--------------------------------------------------------------------
+# choropleth code
+ggplot() +
+  geom_polygon(data = ukr.L1.map,
+               aes(x = long, y = lat, group = group, fill = pct_ukr_L1), 
+               color = 'black', size = 0.25) +
+  coord_map() +
+  scale_fill_gradient(name = 'Percent', 
+                      low = '#FFD500', high = '#005BBB') 
+#--------------------------------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
